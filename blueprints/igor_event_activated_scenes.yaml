@@ -1,0 +1,53 @@
+﻿# https://community.home-assistant.io/t/wth-cant-input-helpers-be-read-only-in-ui/467562/13?u=igorb
+blueprint:
+  name: "Igor's event entity-activated scenes"
+  domain: automation
+  source_url: https://github.com/ibezkrovnyi/home-assistant-blueprints/blob/main/blueprints/igor_event_activated_scenes.yaml
+  input:
+    hold_button_event_entity:
+      name: Hold button Event entity (e.g event.kitchen_button_scene_001)
+      selector:
+        entity:
+          domain: event
+    event_type:
+      name: event_type (one of event_types, e.g. KeyHeldDown)
+      default: KeyHeldDown
+      selector:
+        text:
+    scene_entities:
+      name: Scenes on button hold
+      selector:
+        entity:
+          domain: scene
+          multiple: true
+
+mode: queued
+max: 10
+max_exceeded: silent
+
+variables:
+  key: |
+    {{ this.entity_id + '/scene_index' }}
+  hold_button_event_entity: !input hold_button_event_entity
+  scene_entities: !input scene_entities
+
+trigger:
+  - platform: state
+    entity_id: !input hold_button_event_entity
+    attribute: event_type
+    to: !input event_type
+condition: []
+action:
+  - event: set_variable
+    event_data:
+      key: |
+        {{ key }}
+      value: >
+        {% set cur_index = state_attr('sensor.variables', 'variables')[key] or 0 %}
+        {% set next_index = (cur_index + 1) % scene_entities|length %}
+        {{ next_index }}
+  - service: scene.turn_on
+    target:
+      entity_id: >
+        {% set cur_index = state_attr('sensor.variables', 'variables')[key] or 0 %}
+        {{ scene_entities[cur_index] }}

@@ -1,0 +1,139 @@
+﻿blueprint:
+  name: "Igor's Button-activated Light connected through Relay"
+  domain: automation
+  source_url: https://github.com/ibezkrovnyi/home-assistant-blueprints/blob/main/blueprints/igor_button_light.yaml
+  input:
+    button_entity:
+      name: Button
+      default:
+      selector:
+        entity:
+          domain: switch
+    light_entity:
+      name: Light or Switch
+      default:
+      selector:
+        entity:
+          domain:
+            - light
+            - switch
+    relay_entity:
+      name: Relay
+      default:
+      selector:
+        entity:
+          domain:
+            - light 
+            - switch
+    hold_button_event_entity:
+      name: Hold button Event entity (used to switch scenes listed below)
+      default:
+      selector:
+        entity:
+          domain: event
+    scene_entities:
+      name: Scenes on button hold
+      default:
+      selector:
+        entity:
+          domain: scene
+          multiple: true
+
+mode: queued
+max: 10
+max_exceeded: silent
+# mode: single
+
+trace:
+    stored_traces: 1000
+
+variables:
+  key: |
+    {{ this.entity_id + '/scene_index' }}
+  button_entity: !input button_entity
+  relay_entity: !input relay_entity
+  light_entity: !input light_entity
+  hold_button_event_entity: !input hold_button_event_entity
+  scene_entities: !input scene_entities
+
+trigger:
+  - platform: state
+    entity_id: !input hold_button_event_entity
+    attribute: event_type
+    to: KeyHeldDown
+  - platform: state
+    entity_id: !input button_entity
+    from: null
+    to:
+      - 'on'
+      - 'off'
+  - platform: state
+    entity_id: !input light_entity
+    from: null
+    to:
+      - 'on'
+      - 'off'
+#  - platform: state
+#    entity_id: !input relay_entity
+#    from: null
+#    to: null
+condition:
+  - '{{ not (trigger.entity_id == light_entity and (trigger.to_state.last_update - this.attributes.last_triggered).total_seconds() < 0.2) }}'
+#  - condition: template
+#    value_template: '{{ this.context.parent_id == None }}'
+  #- '{{ this.context.parent_id != None }}'
+  #- '{{ trigger.from_state.context.parent_id == none }}'
+  # Filter out state changes caused by the last run of this automation
+  #- '{{ trigger.to_state.context.id != this.context.id }}'
+
+action:
+#  - service: zwave_js.refresh_value
+#    metadata: {}
+#    data:
+#      entity_id: !input button_entity
+#      refresh_all_values: false
+#  - if:
+#      condition: template
+#      value_template: {{ trigger.entity_id == relay_entity }}
+#    then:
+#    else:
+  
+  - if:
+      - condition: template
+        value_template: "{{ trigger.entity_id == hold_button_event_entity }}"
+    then:
+      - event: set_variable
+        event_data:
+          key: |
+            {{ key }}
+          value: >
+            {% set cur_index = state_attr('sensor.variables', 'variables')[key] or 0 %}
+            {% set next_index = (cur_index + 1) % scene_entities|length %}
+            {{ next_index }}
+      - service: scene.turn_on
+        target:
+          entity_id: >
+            {% set cur_index = state_attr('sensor.variables', 'variables')[key] or 0 %}
+            {{ scene_entities[cur_index] }}
+    else:
+      - parallel:
+          - service: homeassistant.turn_{{ 'on' if trigger.to_state.state != 'off' else 'off' }}
+            entity_id: !input button_entity
+          - service: homeassistant.turn_{{ 'on' if trigger.to_state.state != 'off' else 'off' }}
+            entity_id: !input light_entity
+            continue_on_error: true
+          - service: switch.turn_on
+            metadata: {}
+            data: {}
+            target:
+              entity_id: !input relay_entity
+# https://community.home-assistant.io/t/wth-cant-input-helpers-be-read-only-in-ui/467562/13?u=igorb  
+#  - event: set_variable
+#    event_data:
+#      key: test
+#      value: 26
+#  - service: switch.turn_on
+#    metadata: {}
+#    data: {}
+#    target:
+#      entity_id: !input relay_entity
