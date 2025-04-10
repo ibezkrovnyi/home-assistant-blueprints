@@ -9,11 +9,11 @@ blueprint:
       selector:
         entity:
           domain: event
-    event_type:
-      name: event_type (one of event_types, e.g. KeyHeldDown)
-      default: KeyHeldDown
-      selector:
-        text:
+    # event_type:
+    #   name: event_type (one of event_types, e.g. KeyHeldDown)
+    #   default: KeyHeldDown
+    #   selector:
+    #     text:
     scene_entities:
       name: Scenes on button hold
       selector:
@@ -34,8 +34,8 @@ variables:
 trigger:
   - platform: state
     entity_id: !input hold_button_event_entity
-    attribute: event_type
-    to: !input event_type
+    # attribute: event_type
+    # to: !input event_type
 condition: []
 action:
   - event: set_variable
